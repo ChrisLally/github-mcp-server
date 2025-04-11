@@ -264,10 +264,10 @@ func AddProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFun
 		}
 }
 
-// UpdateProjectV2Item creates a tool to update a project item
+// UpdateProjectV2Item creates a tool to update an item in a project
 func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("update_project_v2_item",
-			mcp.WithDescription(t("TOOL_UPDATE_PROJECT_V2_ITEM_DESCRIPTION", "Update a project item's field value")),
+			mcp.WithDescription(t("TOOL_UPDATE_PROJECT_V2_ITEM_DESCRIPTION", "Update an item in a project")),
 			mcp.WithString("project_id",
 				mcp.Required(),
 				mcp.Description("Project node ID"),
@@ -282,7 +282,7 @@ func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 			),
 			mcp.WithString("value",
 				mcp.Required(),
-				mcp.Description("New field value"),
+				mcp.Description("New value for the field"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -346,7 +346,7 @@ func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 		}
 }
 
-// DeleteProjectV2Item creates a tool to delete a project item
+// DeleteProjectV2Item creates a tool to delete an item from a project
 func DeleteProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("delete_project_v2_item",
 			mcp.WithDescription(t("TOOL_DELETE_PROJECT_V2_ITEM_DESCRIPTION", "Delete an item from a project")),
