@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/github/github-mcp-server/pkg/translations"
 	"github.com/google/go-github/v69/github"
@@ -16,6 +17,91 @@ import (
 )
 
 type GetClientFn func(context.Context) (*github.Client, *githubv4.Client, error)
+
+// RateLimitError represents a GitHub API rate limit error
+type RateLimitError struct {
+	Reset time.Time
+}
+
+func (e *RateLimitError) Error() string {
+	return fmt.Sprintf("GitHub API rate limit exceeded. Reset at %v", e.Reset)
+}
+
+// handleRateLimit checks the rate limit from the response and handles it appropriately
+func handleRateLimit(resp *github.Response) error {
+	if resp == nil {
+		return nil
+	}
+
+	// Check if we've hit the rate limit
+	if resp.Rate.Remaining == 0 {
+		return &RateLimitError{
+			Reset: resp.Rate.Reset.Time,
+		}
+	}
+
+	// If we're getting close to the rate limit (less than 10% remaining), log a warning
+	if float64(resp.Rate.Remaining)/float64(resp.Rate.Limit) < 0.1 {
+		// You might want to log this warning or handle it in some way
+		fmt.Printf("Warning: GitHub API rate limit is low. %d/%d requests remaining. Reset at %v\n",
+			resp.Rate.Remaining, resp.Rate.Limit, resp.Rate.Reset.Time)
+	}
+
+	return nil
+}
+
+// withRateLimitRetry wraps a GitHub API call with rate limit handling and retry logic
+func withRateLimitRetry(ctx context.Context, maxRetries int, fn func() (*github.Response, error)) error {
+	var lastErr error
+	for i := 0; i <= maxRetries; i++ {
+		resp, err := fn()
+		if err != nil {
+			var rateLimitErr *github.RateLimitError
+			if errors.As(err, &rateLimitErr) {
+				if i == maxRetries {
+					return fmt.Errorf("max retries exceeded waiting for rate limit: %w", err)
+				}
+				
+				// Calculate sleep duration (with exponential backoff)
+				sleepDuration := time.Until(rateLimitErr.Rate.Reset.Time)
+				if sleepDuration < 0 {
+					sleepDuration = time.Second * time.Duration(1<<uint(i))
+				}
+				
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(sleepDuration):
+					continue
+				}
+			}
+			lastErr = err
+			break
+		}
+		
+		if err := handleRateLimit(resp); err != nil {
+			var rateLimitErr *RateLimitError
+			if errors.As(err, &rateLimitErr) {
+				if i == maxRetries {
+					return fmt.Errorf("max retries exceeded waiting for rate limit reset: %w", err)
+				}
+				
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case <-time.After(time.Until(rateLimitErr.Reset)):
+					continue
+				}
+			}
+			lastErr = err
+			break
+		}
+		
+		return nil
+	}
+	
+	return lastErr
+}
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 func NewServer(getClient GetClientFn, version string, readOnly bool, t translations.TranslationHelperFunc) *server.MCPServer {
