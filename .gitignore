@@ -1,4 +1,56 @@
-.idea
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+/vendor/
+/go.sum
+/go.work
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Build output
+/bin/
+/dist/
+/build/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+/tmp/
+
+# Node.js / MCP Server
+node_modules/
+mcp-server-*/dist/
+mcp-server-*/.env
+mcp-server-*/.env.*
+mcp-server-*/logs/
+mcp-server-*/npm-debug.log*
+mcp-server-*/yarn-debug.log*
+mcp-server-*/yarn-error.log*
+mcp-server-*/.pnpm-debug.log*
+
+# MCP Server Config (except example)
+mcp-server-*/config/*
+!mcp-server-*/config/projects.example.yaml
+
 cmd/github-mcp-server/github-mcp-server
 # Added by goreleaser init:
 dist/
