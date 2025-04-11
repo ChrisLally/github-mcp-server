@@ -12,9 +12,10 @@ import (
 	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/shurcooL/githubv4"
 )
 
-type GetClientFn func(context.Context) (*github.Client, error)
+type GetClientFn func(context.Context) (*github.Client, *githubv4.Client, error)
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 func NewServer(getClient GetClientFn, version string, readOnly bool, t translations.TranslationHelperFunc) *server.MCPServer {
@@ -101,7 +102,7 @@ func GetMe(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mc
 			),
 		),
 		func(ctx context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}

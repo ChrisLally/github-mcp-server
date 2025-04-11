@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -17,6 +18,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"golang.org/x/oauth2"
+	githubv4 "github.com/shurcooL/githubv4"
 )
 
 var version = "version"
@@ -118,8 +121,23 @@ func runStdioServer(cfg runConfig) error {
 	if token == "" {
 		cfg.logger.Fatal("GITHUB_PERSONAL_ACCESS_TOKEN not set")
 	}
-	ghClient := gogithub.NewClient(nil).WithAuthToken(token)
+	
+	// Create HTTP client with auth
+	httpClient := &http.Client{
+		Transport: &oauth2.Transport{
+			Base: http.DefaultTransport,
+			Source: oauth2.StaticTokenSource(
+				&oauth2.Token{AccessToken: token},
+			),
+		},
+	}
+
+	// Create GitHub REST client
+	ghClient := gogithub.NewClient(httpClient)
 	ghClient.UserAgent = fmt.Sprintf("github-mcp-server/%s", version)
+
+	// Create GitHub GraphQL client
+	graphqlClient := githubv4.NewClient(httpClient)
 
 	// Check GH_HOST env var first, then fall back to viper config
 	host := os.Getenv("GH_HOST")
@@ -133,12 +151,13 @@ func runStdioServer(cfg runConfig) error {
 		if err != nil {
 			return fmt.Errorf("failed to create GitHub client with host: %w", err)
 		}
+		graphqlClient = githubv4.NewEnterpriseClient(host+"/api/graphql", httpClient)
 	}
 
 	t, dumpTranslations := translations.TranslationHelper()
 
-	getClient := func(_ context.Context) (*gogithub.Client, error) {
-		return ghClient, nil // closing over client
+	getClient := func(_ context.Context) (*gogithub.Client, *githubv4.Client, error) {
+		return ghClient, graphqlClient, nil // closing over clients
 	}
 	// Create
 	ghServer := github.NewServer(getClient, version, cfg.readOnly, t)
