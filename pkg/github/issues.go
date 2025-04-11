@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -622,9 +623,12 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 			),
 			mcp.WithNumber("page",
 				mcp.Description("Page number"),
+				mcp.Minimum(1),
 			),
 			mcp.WithNumber("per_page",
 				mcp.Description("Number of records per page"),
+				mcp.Minimum(1),
+				mcp.Maximum(100),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -640,13 +644,23 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			
+			// Add validation for page number
 			page, err := OptionalIntParamWithDefault(request, "page", 1)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
+			if page < 1 {
+				return mcp.NewToolResultError("page number must be greater than 0"), nil
+			}
+
+			// Add validation for per_page
 			perPage, err := OptionalIntParamWithDefault(request, "per_page", 30)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
+			}
+			if perPage < 1 || perPage > 100 {
+				return mcp.NewToolResultError("per_page must be between 1 and 100"), nil
 			}
 
 			opts := &github.IssueListCommentsOptions{
@@ -658,18 +672,54 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 
 			client, _, err := getClient(ctx)
 			if err != nil {
+				if ctx.Err() != nil {
+					return nil, fmt.Errorf("context cancelled while getting GitHub client: %w", ctx.Err())
+				}
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
+			if client == nil {
+				return nil, fmt.Errorf("GitHub client is nil")
+			}
+			
 			comments, resp, err := client.Issues.ListComments(ctx, owner, repo, int(issueNumber), opts)
 			if err != nil {
+				if ctx.Err() != nil {
+					return nil, fmt.Errorf("context cancelled while listing comments: %w", ctx.Err())
+				}
 				return nil, fmt.Errorf("failed to get issue comments: %w", err)
 			}
-			defer func() { _ = resp.Body.Close() }()
+			if resp == nil {
+				return nil, fmt.Errorf("received nil response from GitHub API")
+			}
+			defer func() { 
+				if resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+			}()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read error response body: %w", err)
+				}
+				// Try to parse the error response as JSON for better error messages
+				var githubErr struct {
+					Message string `json:"message"`
+					Errors  []struct {
+						Resource string `json:"resource"`
+						Field    string `json:"field"`
+						Code     string `json:"code"`
+					} `json:"errors"`
+				}
+				if jsonErr := json.Unmarshal(body, &githubErr); jsonErr == nil && githubErr.Message != "" {
+					if len(githubErr.Errors) > 0 {
+						var errMsgs []string
+						for _, err := range githubErr.Errors {
+							errMsgs = append(errMsgs, fmt.Sprintf("%s: %s (%s)", err.Resource, err.Field, err.Code))
+						}
+						return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s - %s", githubErr.Message, strings.Join(errMsgs, ", "))), nil
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", githubErr.Message)), nil
 				}
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue comments: %s", string(body))), nil
 			}
