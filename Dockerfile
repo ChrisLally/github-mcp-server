@@ -1,6 +1,6 @@
 ARG VERSION="dev"
 
-FROM golang:1.23.0 AS build
+FROM golang:1.24.2 AS build
 # allow this step access to build arg
 ARG VERSION
 # Set the working directory
@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build go mod download
 
 COPY . ./
 # Build the server
-RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=$(git rev-parse HEAD) -X main.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+RUN --mount=type=cache,target=/root/.cache/go-build CGO_ENABLED=0 go build -ldflags="-s -w -X main.version=${VERSION} -X main.commit=unknown -X main.date=unknown" \
     -o github-mcp-server cmd/github-mcp-server/main.go
 
 # Make a stage to run the app

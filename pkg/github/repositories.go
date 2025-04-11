@@ -56,7 +56,7 @@ func ListCommits(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -161,7 +161,7 @@ func CreateOrUpdateFile(getClient GetClientFn, t translations.TranslationHelperF
 			}
 
 			// Create or update the file
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -231,7 +231,7 @@ func CreateRepository(getClient GetClientFn, t translations.TranslationHelperFun
 				AutoInit:    github.Ptr(autoInit),
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -296,7 +296,7 @@ func GetFileContents(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -366,7 +366,7 @@ func ForkRepository(getClient GetClientFn, t translations.TranslationHelperFunc)
 				opts.Organization = org
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -436,7 +436,7 @@ func CreateBranch(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -548,7 +548,7 @@ func PushFiles(getClient GetClientFn, t translations.TranslationHelperFunc) (too
 				return mcp.NewToolResultError("files parameter must be an array of objects with path and content"), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}

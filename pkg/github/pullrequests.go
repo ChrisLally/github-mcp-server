@@ -44,11 +44,11 @@ func GetPullRequest(getClient GetClientFn, t translations.TranslationHelperFunc)
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, int(pullNumber))
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request: %w", err)
 			}
@@ -161,11 +161,11 @@ func UpdatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 				return mcp.NewToolResultError("No update parameters provided."), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			pr, resp, err := client.PullRequests.Edit(ctx, owner, repo, pullNumber, update)
+			pr, resp, err := client.PullRequests.Edit(ctx, owner, repo, int(pullNumber), update)
 			if err != nil {
 				return nil, fmt.Errorf("failed to update pull request: %w", err)
 			}
@@ -263,7 +263,7 @@ func ListPullRequests(getClient GetClientFn, t translations.TranslationHelperFun
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -347,11 +347,11 @@ func MergePullRequest(getClient GetClientFn, t translations.TranslationHelperFun
 				MergeMethod: mergeMethod,
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			result, resp, err := client.PullRequests.Merge(ctx, owner, repo, pullNumber, commitMessage, options)
+			result, resp, err := client.PullRequests.Merge(ctx, owner, repo, int(pullNumber), commitMessage, options)
 			if err != nil {
 				return nil, fmt.Errorf("failed to merge pull request: %w", err)
 			}
@@ -405,12 +405,12 @@ func GetPullRequestFiles(getClient GetClientFn, t translations.TranslationHelper
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
 			opts := &github.ListOptions{}
-			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, pullNumber, opts)
+			files, resp, err := client.PullRequests.ListFiles(ctx, owner, repo, int(pullNumber), opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request files: %w", err)
 			}
@@ -464,11 +464,11 @@ func GetPullRequestStatus(getClient GetClientFn, t translations.TranslationHelpe
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			// First get the PR to find the head SHA
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, pullNumber)
+			pr, resp, err := client.PullRequests.Get(ctx, owner, repo, int(pullNumber))
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request: %w", err)
 			}
@@ -548,11 +548,11 @@ func UpdatePullRequestBranch(getClient GetClientFn, t translations.TranslationHe
 				opts.ExpectedHeadSHA = github.Ptr(expectedHeadSHA)
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, pullNumber, opts)
+			result, resp, err := client.PullRequests.UpdateBranch(ctx, owner, repo, int(pullNumber), opts)
 			if err != nil {
 				// Check if it's an acceptedError. An acceptedError indicates that the update is in progress,
 				// and it's not a real error.
@@ -611,17 +611,16 @@ func GetPullRequestComments(getClient GetClientFn, t translations.TranslationHel
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
+			client, _, err := getClient(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
+			}
 			opts := &github.PullRequestListCommentsOptions{
 				ListOptions: github.ListOptions{
 					PerPage: 100,
 				},
 			}
-
-			client, err := getClient(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
-			}
-			comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, pullNumber, opts)
+			comments, resp, err := client.PullRequests.ListComments(ctx, owner, repo, int(pullNumber), opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request comments: %w", err)
 			}
@@ -675,11 +674,11 @@ func GetPullRequestReviews(getClient GetClientFn, t translations.TranslationHelp
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, pullNumber, nil)
+			reviews, resp, err := client.PullRequests.ListReviews(ctx, owner, repo, int(pullNumber), nil)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get pull request reviews: %w", err)
 			}
@@ -871,11 +870,11 @@ func CreatePullRequestReview(getClient GetClientFn, t translations.TranslationHe
 				reviewRequest.Comments = comments
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			review, resp, err := client.PullRequests.CreateReview(ctx, owner, repo, pullNumber, reviewRequest)
+			review, resp, err := client.PullRequests.CreateReview(ctx, owner, repo, int(pullNumber), reviewRequest)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create pull request review: %w", err)
 			}
@@ -982,7 +981,7 @@ func CreatePullRequest(getClient GetClientFn, t translations.TranslationHelperFu
 			newPR.Draft = github.Ptr(draft)
 			newPR.MaintainerCanModify = github.Ptr(maintainerCanModify)
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}

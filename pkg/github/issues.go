@@ -45,11 +45,11 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			issue, resp, err := client.Issues.Get(ctx, owner, repo, issueNumber)
+			issue, resp, err := client.Issues.Get(ctx, owner, repo, int(issueNumber))
 			if err != nil {
 				return nil, fmt.Errorf("failed to get issue: %w", err)
 			}
@@ -115,11 +115,11 @@ func AddIssueComment(getClient GetClientFn, t translations.TranslationHelperFunc
 				Body: github.Ptr(body),
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, issueNumber, comment)
+			createdComment, resp, err := client.Issues.CreateComment(ctx, owner, repo, int(issueNumber), comment)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create comment: %w", err)
 			}
@@ -199,7 +199,7 @@ func SearchIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -317,7 +317,7 @@ func CreateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				Milestone: milestoneNum,
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -435,7 +435,7 @@ func ListIssues(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				opts.PerPage = int(perPage)
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -577,11 +577,11 @@ func UpdateIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				issueRequest.Milestone = &milestoneNum
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, issueNumber, issueRequest)
+			updatedIssue, resp, err := client.Issues.Edit(ctx, owner, repo, int(issueNumber), issueRequest)
 			if err != nil {
 				return nil, fmt.Errorf("failed to update issue: %w", err)
 			}
@@ -656,11 +656,11 @@ func GetIssueComments(getClient GetClientFn, t translations.TranslationHelperFun
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			comments, resp, err := client.Issues.ListComments(ctx, owner, repo, issueNumber, opts)
+			comments, resp, err := client.Issues.ListComments(ctx, owner, repo, int(issueNumber), opts)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get issue comments: %w", err)
 			}

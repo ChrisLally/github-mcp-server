@@ -3,12 +3,10 @@ package github
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-
 	"github.com/github/github-mcp-server/pkg/translations"
-	"github.com/google/go-github/v69/github"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/shurcooL/githubv4"
 )
 
 // GetProjectV2 creates a tool to get details of a project
@@ -25,7 +23,7 @@ func GetProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			_, graphqlClient, err := getClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -39,51 +37,78 @@ func GetProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc) (
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			query := fmt.Sprintf(`
-				query {
-					organization(login: "%s") {
-						projectV2(number: %d) {
-							id
-							title
-							shortDescription
-							readme
-							public
-							items(first: 20) {
-								nodes {
-									id
-									fieldValues(first: 8) {
-										nodes {
-											... on ProjectV2ItemFieldTextValue {
-												text
-												field {
-													... on ProjectV2FieldCommon {
-														name
-													}
-												}
-											}
-										}
+			var query struct {
+				Organization struct {
+					ProjectV2 struct {
+						ID          string
+						Title       string
+						Description string `graphql:"shortDescription"`
+						Readme      string
+						Public      bool
+						Items struct {
+							Nodes []struct {
+								ID          string
+								FieldValues struct {
+									Nodes []struct {
+										TextValue struct {
+											Text  string
+											Field struct {
+												Name string
+											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
+										} `graphql:"... on ProjectV2ItemFieldTextValue"`
+										DateValue struct {
+											Date  string
+											Field struct {
+												Name string
+											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
+										} `graphql:"... on ProjectV2ItemFieldDateValue"`
+										SingleSelectValue struct {
+											Name  string
+											Field struct {
+												Name string
+											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
+										} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
 									}
+								} `graphql:"fieldValues(first: 8)"`
+								Content struct {
+									DraftIssue struct {
+										Title string
+										Body  string
+									} `graphql:"... on DraftIssue"`
+									Issue struct {
+										Title    string
+										Assignees struct {
+											Nodes []struct {
+												Login string
+											}
+										} `graphql:"assignees(first: 10)"`
+									} `graphql:"... on Issue"`
+									PullRequest struct {
+										Title    string
+										Assignees struct {
+											Nodes []struct {
+												Login string
+											}
+										} `graphql:"assignees(first: 10)"`
+									} `graphql:"... on PullRequest"`
 								}
 							}
-						}
-					}
-				}
-			`, owner, number)
+						} `graphql:"items(first: 20)"`
+					} `graphql:"projectV2(number: $number)"`
+				} `graphql:"organization(login: $owner)"`
+			}
 
-			req, err := client.NewRequest("POST", "graphql", map[string]interface{}{
-				"query": query,
-			})
+			variables := map[string]interface{}{
+				"owner":  githubv4.String(owner),
+				"number": githubv4.Int(number),
+			}
+
+			err = graphqlClient.Query(ctx, &query, variables)
 			if err != nil {
 				return nil, err
 			}
 
-			var response map[string]interface{}
-			_, err = client.Do(ctx, req, &response)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := json.Marshal(response)
+			r, err := json.Marshal(query)
 			if err != nil {
 				return nil, err
 			}
@@ -112,7 +137,7 @@ func CreateProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			_, graphqlClient, err := getClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -126,50 +151,49 @@ func CreateProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			description, err := OptionalParam[string](request, "description")
+			description, _, err := OptionalParamOK[string](request, "description")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			public, err := OptionalParam[bool](request, "public")
+			public, _, err := OptionalParamOK[bool](request, "public")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			mutation := fmt.Sprintf(`
-				mutation {
-					createProjectV2(
-						input: {
-							ownerId: "%s",
-							title: "%s",
-							description: "%s",
-							public: %t
-						}
-					) {
-						projectV2 {
-							id
-							title
-							shortDescription
-							public
-						}
+			var mutation struct {
+				CreateProjectV2 struct {
+					ProjectV2 struct {
+						ID          string
+						Title       string
+						Description string `graphql:"shortDescription"`
+						Public      bool
 					}
-				}
-			`, owner, title, description, public)
+				} `graphql:"createProjectV2(input: $input)"`
+			}
 
-			req, err := client.NewRequest("POST", "graphql", map[string]interface{}{
-				"query": mutation,
-			})
+			input := struct {
+				OwnerID     githubv4.String
+				Title       githubv4.String
+				Description githubv4.String
+				Public      githubv4.Boolean
+			}{
+				OwnerID:     githubv4.String(owner),
+				Title:       githubv4.String(title),
+				Description: githubv4.String(description),
+				Public:      githubv4.Boolean(public),
+			}
+
+			variables := map[string]interface{}{
+				"input": input,
+			}
+
+			err = graphqlClient.Mutate(ctx, &mutation, input, variables)
 			if err != nil {
 				return nil, err
 			}
 
-			var response map[string]interface{}
-			_, err = client.Do(ctx, req, &response)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := json.Marshal(response)
+			r, err := json.Marshal(mutation)
 			if err != nil {
 				return nil, err
 			}
@@ -192,7 +216,7 @@ func AddProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFun
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			_, graphqlClient, err := getClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -206,35 +230,32 @@ func AddProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFun
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			mutation := fmt.Sprintf(`
-				mutation {
-					addProjectV2ItemById(
-						input: {
-							projectId: "%s"
-							contentId: "%s"
-						}
-					) {
-						item {
-							id
-						}
+			var mutation struct {
+				AddProjectV2Item struct {
+					Item struct {
+						ID string
 					}
-				}
-			`, projectID, contentID)
+				} `graphql:"addProjectV2Item(input: $input)"`
+			}
 
-			req, err := client.NewRequest("POST", "graphql", map[string]interface{}{
-				"query": mutation,
-			})
+			input := struct {
+				ProjectID githubv4.ID
+				ContentID githubv4.ID
+			}{
+				ProjectID: githubv4.ID(projectID),
+				ContentID: githubv4.ID(contentID),
+			}
+
+			variables := map[string]interface{}{
+				"input": input,
+			}
+
+			err = graphqlClient.Mutate(ctx, &mutation, input, variables)
 			if err != nil {
 				return nil, err
 			}
 
-			var response map[string]interface{}
-			_, err = client.Do(ctx, req, &response)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := json.Marshal(response)
+			r, err := json.Marshal(mutation)
 			if err != nil {
 				return nil, err
 			}
@@ -259,13 +280,13 @@ func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 				mcp.Required(),
 				mcp.Description("Field node ID"),
 			),
-			mcp.WithObject("value",
+			mcp.WithString("value",
 				mcp.Required(),
 				mcp.Description("New field value"),
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			_, graphqlClient, err := getClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -282,42 +303,41 @@ func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			value, err := requiredParam[map[string]interface{}](request, "value")
+			value, err := requiredParam[string](request, "value")
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			mutation := fmt.Sprintf(`
-				mutation {
-					updateProjectV2ItemFieldValue(
-						input: {
-							projectId: "%s"
-							itemId: "%s"
-							fieldId: "%s"
-							value: %v
-						}
-					) {
-						projectV2Item {
-							id
-						}
+			var mutation struct {
+				UpdateProjectV2ItemFieldValue struct {
+					ProjectV2Item struct {
+						ID string
 					}
-				}
-			`, projectID, itemID, fieldID, value)
+				} `graphql:"updateProjectV2ItemFieldValue(input: $input)"`
+			}
 
-			req, err := client.NewRequest("POST", "graphql", map[string]interface{}{
-				"query": mutation,
-			})
+			input := struct {
+				ProjectID githubv4.ID
+				ItemID    githubv4.ID
+				FieldID   githubv4.ID
+				Value     string
+			}{
+				ProjectID: githubv4.ID(projectID),
+				ItemID:    githubv4.ID(itemID),
+				FieldID:   githubv4.ID(fieldID),
+				Value:     value,
+			}
+
+			variables := map[string]interface{}{
+				"input": input,
+			}
+
+			err = graphqlClient.Mutate(ctx, &mutation, input, variables)
 			if err != nil {
 				return nil, err
 			}
 
-			var response map[string]interface{}
-			_, err = client.Do(ctx, req, &response)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := json.Marshal(response)
+			r, err := json.Marshal(mutation)
 			if err != nil {
 				return nil, err
 			}
@@ -326,7 +346,7 @@ func UpdateProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 		}
 }
 
-// DeleteProjectV2Item creates a tool to delete an item from a project
+// DeleteProjectV2Item creates a tool to delete a project item
 func DeleteProjectV2Item(getClient GetClientFn, t translations.TranslationHelperFunc) (tool mcp.Tool, handler server.ToolHandlerFunc) {
 	return mcp.NewTool("delete_project_v2_item",
 			mcp.WithDescription(t("TOOL_DELETE_PROJECT_V2_ITEM_DESCRIPTION", "Delete an item from a project")),
@@ -340,7 +360,7 @@ func DeleteProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			client, err := getClient(ctx)
+			_, graphqlClient, err := getClient(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -354,33 +374,30 @@ func DeleteProjectV2Item(getClient GetClientFn, t translations.TranslationHelper
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 
-			mutation := fmt.Sprintf(`
-				mutation {
-					deleteProjectV2Item(
-						input: {
-							projectId: "%s"
-							itemId: "%s"
-						}
-					) {
-						deletedItemId
-					}
-				}
-			`, projectID, itemID)
+			var mutation struct {
+				DeleteProjectV2Item struct {
+					DeletedItemId string
+				} `graphql:"deleteProjectV2Item(input: $input)"`
+			}
 
-			req, err := client.NewRequest("POST", "graphql", map[string]interface{}{
-				"query": mutation,
-			})
+			input := struct {
+				ProjectID githubv4.ID
+				ItemID    githubv4.ID
+			}{
+				ProjectID: githubv4.ID(projectID),
+				ItemID:    githubv4.ID(itemID),
+			}
+
+			variables := map[string]interface{}{
+				"input": input,
+			}
+
+			err = graphqlClient.Mutate(ctx, &mutation, input, variables)
 			if err != nil {
 				return nil, err
 			}
 
-			var response map[string]interface{}
-			_, err = client.Do(ctx, req, &response)
-			if err != nil {
-				return nil, err
-			}
-
-			r, err := json.Marshal(response)
+			r, err := json.Marshal(mutation)
 			if err != nil {
 				return nil, err
 			}

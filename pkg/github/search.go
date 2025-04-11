@@ -39,7 +39,7 @@ func SearchRepositories(getClient GetClientFn, t translations.TranslationHelperF
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -110,7 +110,7 @@ func SearchCode(getClient GetClientFn, t translations.TranslationHelperFunc) (to
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
@@ -183,7 +183,7 @@ func SearchUsers(getClient GetClientFn, t translations.TranslationHelperFunc) (t
 				},
 			}
 
-			client, err := getClient(ctx)
+			client, _, err := getClient(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
