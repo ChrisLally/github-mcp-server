@@ -1,6 +1,6 @@
 module github.com/github/github-mcp-server
 
-go 1.23.7
+go 1.23.0
 
 require (
 	github.com/docker/docker v28.0.4+incompatible

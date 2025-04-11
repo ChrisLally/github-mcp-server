@@ -58,6 +58,15 @@ func NewServer(getClient GetClientFn, version string, readOnly bool, t translati
 		s.AddTool(UpdatePullRequest(getClient, t))
 	}
 
+	// Add GitHub tools - Projects
+	s.AddTool(GetProjectV2(getClient, t))
+	if !readOnly {
+		s.AddTool(CreateProjectV2(getClient, t))
+		s.AddTool(AddProjectV2Item(getClient, t))
+		s.AddTool(UpdateProjectV2Item(getClient, t))
+		s.AddTool(DeleteProjectV2Item(getClient, t))
+	}
+
 	// Add GitHub tools - Repositories
 	s.AddTool(SearchRepositories(getClient, t))
 	s.AddTool(GetFileContents(getClient, t))
