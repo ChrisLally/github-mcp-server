@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,17 +51,60 @@ func GetIssue(getClient GetClientFn, t translations.TranslationHelperFunc) (tool
 			if err != nil {
 				return nil, fmt.Errorf("failed to get GitHub client: %w", err)
 			}
-			issue, resp, err := client.Issues.Get(ctx, owner, repo, int(issueNumber))
+
+			var issue *github.Issue
+			var resp *github.Response
+			
+			err = withRateLimitRetry(ctx, 3, func() (*github.Response, error) {
+				var getErr error
+				issue, resp, getErr = client.Issues.Get(ctx, owner, repo, int(issueNumber))
+				return resp, getErr
+			})
+			
 			if err != nil {
+				var rateLimitErr *RateLimitError
+				if errors.As(err, &rateLimitErr) {
+					return mcp.NewToolResultError(fmt.Sprintf("GitHub API rate limit exceeded. Please try again after %v", rateLimitErr.Reset)), nil
+				}
 				return nil, fmt.Errorf("failed to get issue: %w", err)
 			}
-			defer func() { _ = resp.Body.Close() }()
+
+			if resp == nil {
+				return nil, fmt.Errorf("received nil response from GitHub API")
+			}
+			defer func() {
+				if resp.Body != nil {
+					_ = resp.Body.Close()
+				}
+			}()
 
 			if resp.StatusCode != http.StatusOK {
 				body, err := io.ReadAll(resp.Body)
 				if err != nil {
-					return nil, fmt.Errorf("failed to read response body: %w", err)
+					return nil, fmt.Errorf("failed to read error response body: %w", err)
 				}
+				
+				// Try to parse the error response as JSON for better error messages
+				var githubErr struct {
+					Message string `json:"message"`
+					Errors  []struct {
+						Resource string `json:"resource"`
+						Field    string `json:"field"`
+						Code     string `json:"code"`
+					} `json:"errors"`
+				}
+				
+				if jsonErr := json.Unmarshal(body, &githubErr); jsonErr == nil && githubErr.Message != "" {
+					if len(githubErr.Errors) > 0 {
+						var errMsgs []string
+						for _, err := range githubErr.Errors {
+							errMsgs = append(errMsgs, fmt.Sprintf("%s: %s (%s)", err.Resource, err.Field, err.Code))
+						}
+						return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s - %s", githubErr.Message, strings.Join(errMsgs, ", "))), nil
+					}
+					return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", githubErr.Message)), nil
+				}
+				
 				return mcp.NewToolResultError(fmt.Sprintf("failed to get issue: %s", string(body))), nil
 			}
 
