@@ -4,6 +4,10 @@ The GitHub MCP Server is a [Model Context Protocol (MCP)](https://modelcontextpr
 server that provides seamless integration with GitHub APIs, enabling advanced
 automation and interaction capabilities for developers and tools.
 
+## Known Issues
+
+*   **Project Tools (e.g., `get_project_v2`, `create_project_v2`):** There is currently an incompatibility between how Cursor sends parameters for these tools and how this MCP server library parses the incoming JSON-RPC request. This results in a parsing error (`Expected NAME, actual: LCURLY`) before the tool's Go code is executed. Parameter-less tools like `get_me` work correctly. See the "Running Project Tools Directly with Go (Workaround)" section below for a reliable alternative.
+
 [![Install with Docker in VS Code](https://img.shields.io/badge/VS_Code-Install_Server-0098FF?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D) [![Install with Docker in VS Code Insiders](https://img.shields.io/badge/VS_Code_Insiders-Install_Server-24bfa5?style=flat-square&logo=visualstudiocode&logoColor=white)](https://insiders.vscode.dev/redirect/mcp/install?name=github&inputs=%5B%7B%22id%22%3A%22github_token%22%2C%22type%22%3A%22promptString%22%2C%22description%22%3A%22GitHub%20Personal%20Access%20Token%22%2C%22password%22%3Atrue%7D%5D&config=%7B%22command%22%3A%22docker%22%2C%22args%22%3A%5B%22run%22%2C%22-i%22%2C%22--rm%22%2C%22-e%22%2C%22GITHUB_PERSONAL_ACCESS_TOKEN%22%2C%22ghcr.io%2Fgithub%2Fgithub-mcp-server%22%5D%2C%22env%22%3A%7B%22GITHUB_PERSONAL_ACCESS_TOKEN%22%3A%22%24%7Binput%3Agithub_token%7D%22%7D%7D&quality=insiders)
 
 ## Use Cases
@@ -88,6 +92,34 @@ More about using MCP server tools in VS Code's [agent mode documentation](https:
   }
 }
 ```
+
+### Build and Run Locally with Docker (After Code Changes)
+
+If you have made changes to the Go source code, you need to rebuild the Docker image locally:
+
+1.  **Build the image:**
+    ```bash
+    docker build -t github-mcp-server .
+    ```
+    *Note: You might need `$env:DOCKER_BUILDKIT=1;` before the command on PowerShell if you encounter build issues.*
+
+2.  **Run the container using the locally built image:**
+    Make sure to use the local image name (`github-mcp-server`) instead of the public one (`ghcr.io/github/github-mcp-server`) in your MCP configuration (e.g., in VS Code User Settings JSON or `.vscode/mcp.json`). The command should look like:
+    ```json
+    "command": "docker",
+    "args": [
+      "run",
+      "-i",
+      "--rm",
+      "-p", "8080:8080", // Ensure port mapping is present
+      "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+      "github-mcp-server" // Use local image name
+    ],
+    "env": {
+      "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_token}"
+    }
+    ```
+    *Remember to restart your MCP client (like VS Code) after changing the configuration.*
 
 ### Build from source
 
