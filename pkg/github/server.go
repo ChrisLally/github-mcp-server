@@ -271,17 +271,34 @@ func requiredParam[T comparable](r mcp.CallToolRequest, p string) (T, error) {
 	return r.Params.Arguments[p].(T), nil
 }
 
-// RequiredInt is a helper function that can be used to fetch a requested parameter from the request.
+// requiredInt is a helper function that can be used to fetch a requested parameter from the request.
 // It does the following checks:
 // 1. Checks if the parameter is present in the request.
 // 2. Checks if the parameter is of the expected type.
 // 3. Checks if the parameter is not empty, i.e: non-zero value
-func RequiredInt(r mcp.CallToolRequest, p string) (int, error) {
-	v, err := requiredParam[float64](r, p)
-	if err != nil {
-		return 0, err
+func requiredInt(r mcp.CallToolRequest, p string) (int, error) {
+	// Check if the parameter is present in the request
+	if _, ok := r.Params.Arguments[p]; !ok {
+		return 0, fmt.Errorf("missing required parameter: %s", p)
 	}
-	return int(v), nil
+
+	// Convert parameter to int based on its type
+	switch val := r.Params.Arguments[p].(type) {
+	case float64:
+		return int(val), nil
+	case int:
+		return val, nil
+	case int64:
+		return int(val), nil
+	case json.Number:
+		i, err := val.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("failed to parse %s as int: %v", p, err)
+		}
+		return int(i), nil
+	default:
+		return 0, fmt.Errorf("invalid type for %s, expected number, got %T", p, r.Params.Arguments[p])
+	}
 }
 
 // OptionalParam is a helper function that can be used to fetch a requested parameter from the request.
