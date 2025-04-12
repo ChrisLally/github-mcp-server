@@ -200,7 +200,50 @@ func runStdioServer(cfg runConfig) error {
 	return nil
 }
 
+// Print verbose startup logs and diagnostic information
 func main() {
+	fmt.Println("Starting GitHub MCP Server...")
+	
+	// Check critical environment variables
+	token := os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+	if token == "" {
+		fmt.Println("ERROR: GITHUB_PERSONAL_ACCESS_TOKEN environment variable not set!")
+		fmt.Println("Please set a valid GitHub token with appropriate permissions.")
+		os.Exit(1)
+	}
+	
+	// Log that we have a token (but don't print it fully)
+	fmt.Printf("GitHub token found, starts with: %s... (length: %d)\n", token[:5], len(token))
+	
+	// Add more startup diagnostic info
+	fmt.Println("Testing connectivity to GitHub API...")
+	
+	// Create a test client
+	ctx := context.Background()
+	sts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	httpClient := oauth2.NewClient(ctx, sts)
+	gqlClient := githubv4.NewClient(httpClient)
+	
+	// Try a simple GraphQL query
+	var query struct {
+		Viewer struct {
+			Login string
+		}
+	}
+	
+	err := gqlClient.Query(ctx, &query, nil)
+	if err != nil {
+		fmt.Printf("ERROR: Could not connect to GitHub API: %v\n", err)
+		fmt.Println("Please check your token permissions and network connectivity.")
+	} else {
+		fmt.Printf("Successfully authenticated to GitHub API as: %s\n", query.Viewer.Login)
+	}
+	
+	// Continue with server startup
+	fmt.Println("Initializing MCP server with GitHub tools...")
+	
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

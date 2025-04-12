@@ -8,6 +8,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
+	"strings"
 )
 
 // GetProjectV2 creates a tool to get details of a project
@@ -395,18 +396,36 @@ func CreateProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc
 			}
 
 			// Execute the mutation
-			fmt.Println("DEBUG: Executing GraphQL mutation")
+			fmt.Println("DEBUG: Executing GraphQL mutation to create project")
+			fmt.Printf("DEBUG: Project details - Title: %s, Owner: %s (ID: %s), Public: %v\n", 
+				string(input.Title), owner, string(input.OwnerID), public)
+			
+			// Add extra error handling and connection validation
 			err = graphqlClient.Mutate(ctx, &mutation, input, variables)
 			if err != nil {
+				// Log error details
+				fmt.Printf("ERROR: GraphQL mutation failed: %v\n", err)
+				
+				// Check for specific error types
+				if strings.Contains(err.Error(), "401") || strings.Contains(err.Error(), "Unauthorized") {
+					return mcp.NewToolResultError("Authorization error - please check your token has 'project' scope: " + err.Error()), nil
+				}
+				
+				if strings.Contains(err.Error(), "could not resolve") {
+					return mcp.NewToolResultError("Invalid owner ID or login. Please check the owner exists: " + err.Error()), nil
+				}
+				
+				if strings.Contains(err.Error(), "timeout") || strings.Contains(err.Error(), "TLS") {
+					return mcp.NewToolResultError("Network connection error to GitHub API: " + err.Error()), nil
+				}
+				
 				// If GraphQL mutation fails, try using REST API as fallback
-				fmt.Printf("DEBUG: GraphQL mutation failed: %v\n", err)
 				restErr := fmt.Sprintf("Error creating project: %s", err)
 				
 				// Check if a REST client is available
 				if restClient != nil {
-					// Make additional diagnostic log
-					restErr = fmt.Sprintf("%s. Attempting REST API fallback...", restErr)
 					fmt.Println("DEBUG: Attempting REST API fallback")
+					restErr = fmt.Sprintf("%s. Attempting REST API fallback...", restErr)
 					
 					// For now, just return the GraphQL error
 					return mcp.NewToolResultError(restErr), nil

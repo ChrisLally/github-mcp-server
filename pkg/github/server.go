@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/github/github-mcp-server/pkg/translations"
@@ -14,6 +15,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/shurcooL/githubv4"
+	"golang.org/x/oauth2"
 )
 
 type GetClientFn func(context.Context) (*github.Client, *githubv4.Client, error)
@@ -105,13 +107,16 @@ func withRateLimitRetry(ctx context.Context, maxRetries int, fn func() (*github.
 
 // NewServer creates a new GitHub MCP server with the specified GH client and logger.
 func NewServer(getClient GetClientFn, version string, readOnly bool, t translations.TranslationHelperFunc) *server.MCPServer {
-	// Create a new MCP server
-	s := server.NewMCPServer(
-		"github-mcp-server",
-		version,
-		server.WithResourceCapabilities(true, true),
-		server.WithLogging())
-
+	fmt.Println("DEBUG: Initializing GitHub MCP server")
+	
+	// Create a new server
+	s := server.New(version)
+	
+	// Register our diagnostic tool first (for debugging)
+	tool, handler := DiagnoseTool(getClient)
+	s.RegisterTool(tool, handler, nil)
+	fmt.Println("DEBUG: Registered diagnose_github_mcp tool")
+	
 	// Add GitHub Resources
 	s.AddResourceTemplate(GetRepositoryResourceContent(getClient, t))
 	s.AddResourceTemplate(GetRepositoryResourceBranchContent(getClient, t))
@@ -177,6 +182,37 @@ func NewServer(getClient GetClientFn, version string, readOnly bool, t translati
 	s.AddTool(GetCodeScanningAlert(getClient, t))
 	s.AddTool(ListCodeScanningAlerts(getClient, t))
 	return s
+}
+
+// GetClient creates a tool to get details of the authenticated user.
+func GetClient(ctx context.Context) (*github.Client, *githubv4.Client, error) {
+	fmt.Println("DEBUG: GetClient called - initializing GitHub clients")
+	token := os.Getenv("GITHUB_PERSONAL_ACCESS_TOKEN")
+	if token == "" {
+		fmt.Println("ERROR: GITHUB_PERSONAL_ACCESS_TOKEN environment variable not set")
+		return nil, nil, fmt.Errorf("GITHUB_PERSONAL_ACCESS_TOKEN environment variable not set")
+	}
+	
+	fmt.Printf("DEBUG: Using token starting with: %s... (length: %d)\n", token[:5], len(token))
+	
+	// Create the clients
+	sts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	ctx = context.WithValue(ctx, oauth2.HTTPClient, &http.Client{
+		Timeout: time.Second * 30,
+	})
+	
+	httpClient := oauth2.NewClient(ctx, sts)
+	fmt.Println("DEBUG: HTTP client created with OAuth2 token")
+	
+	restClient := github.NewClient(httpClient)
+	fmt.Println("DEBUG: REST client created")
+	
+	graphqlClient := githubv4.NewClient(httpClient)
+	fmt.Println("DEBUG: GraphQL client created")
+	
+	return restClient, graphqlClient, nil
 }
 
 // GetMe creates a tool to get details of the authenticated user.
