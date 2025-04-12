@@ -454,3 +454,51 @@ The exported Go API of this module should currently be considered unstable, and 
 ## License
 
 This project is licensed under the terms of the MIT open source license. Please refer to [MIT](./LICENSE) for the full terms.
+
+## Running Project Tools Directly with Go (Workaround)
+
+Due to potential issues with the MCP server parameter handling, you can run the project-related functionality directly using Go scripts. This bypasses the MCP server layer and interacts with the GitHub API directly.
+
+### Prerequisites
+
+1.  **Go:** Ensure you have Go installed (version 1.18 or later).
+2.  **GitHub Token:** You need a GitHub Personal Access Token with the necessary scopes (e.g., `project`, `repo`). Set this token as an environment variable:
+    ```powershell
+    $env:GITHUB_PERSONAL_ACCESS_TOKEN="YOUR_GITHUB_TOKEN_HERE"
+    ```
+    (Replace `YOUR_GITHUB_TOKEN_HERE` with your actual token)
+
+### 1. Get Project Details
+
+We have a script `direct_project_query.go` for this.
+
+```bash
+# Make sure GITHUB_PERSONAL_ACCESS_TOKEN is set
+go run direct_project_query.go
+```
+
+*Note: Currently, this script has the owner (`manian0430`) and project number (`1`) hardcoded. You may need to modify the script if you want to query different projects.*
+
+### 2. Create a New Project
+
+We created a script `run_project_test.ps1` that uses `test_project_graphql.go` internally to create a project directly via the GraphQL API.
+
+```powershell
+# Make sure GITHUB_PERSONAL_ACCESS_TOKEN is set
+.\run_project_test.ps1
+```
+
+This script will create a project named "Test Project via Direct GraphQL" under the authenticated user's account.
+
+### 3. Other Project Operations (Example: Adding Items)
+
+You can create similar Go scripts for other operations like adding items to a project. You would typically:
+
+1.  Define the required GraphQL mutation (e.g., `addProjectV2ItemById`).
+2.  Create a Go script similar to `direct_project_query.go` or `test_project_graphql.go`:
+    *   Set up the GitHub GraphQL client using your token.
+    *   Define the mutation string and variables (e.g., `projectID`, `contentID`).
+    *   Use the client's `Mutate` method.
+    *   Print the result or handle errors.
+
+This direct execution method is currently the most reliable way to interact with GitHub Projects using this codebase.
