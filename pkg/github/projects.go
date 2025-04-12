@@ -25,197 +25,22 @@ func GetProjectV2(getClient GetClientFn, t translations.TranslationHelperFunc) (
 			),
 		),
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			fmt.Println("DEBUG: GetProjectV2 received request")
+			fmt.Println("DEBUG: GetProjectV2 handler reached.")
 			
-			// Extract parameter values
-			owner := "manian0430" // Default fallback
-			number := 1           // Default fallback
-			
-			// Try to extract from Arguments map
-			if ownerVal, ok := request.Params.Arguments["owner"]; ok {
-				if ownerStr, ok := ownerVal.(string); ok {
-					owner = ownerStr
-					fmt.Printf("DEBUG: Found owner=%s in Arguments\n", owner)
-				}
-			}
-			
-			if numVal, ok := request.Params.Arguments["number"]; ok {
-				switch n := numVal.(type) {
-				case float64:
-					number = int(n)
-					fmt.Printf("DEBUG: Found number=%d (float64) in Arguments\n", number)
-				case int:
-					number = n
-					fmt.Printf("DEBUG: Found number=%d (int) in Arguments\n", number)
-				}
-			}
-			
-			fmt.Printf("DEBUG: Using owner=%s, number=%d\n", owner, number)
-			
-			_, graphqlClient, err := getClient(ctx)
+			// Log the raw parameters received
+			paramsJSON, err := json.MarshalIndent(request.Params, "", "  ")
 			if err != nil {
-				return nil, err
+				fmt.Printf("ERROR: Could not marshal request params: %v\n", err)
+			} else {
+				fmt.Printf("DEBUG: Received Params:\n%s\n", string(paramsJSON))
 			}
 			
-			// Query for user projects first since we know our target is a user
-			var userQuery struct {
-				User struct {
-					ProjectV2 struct {
-						ID          string
-						Title       string
-						Description string `graphql:"shortDescription"`
-						Readme      string
-						Public      bool
-						Items struct {
-							Nodes []struct {
-								ID          string
-								FieldValues struct {
-									Nodes []struct {
-										TextValue struct {
-											Text  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldTextValue"`
-										DateValue struct {
-											Date  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldDateValue"`
-										SingleSelectValue struct {
-											Name  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
-									}
-								} `graphql:"fieldValues(first: 8)"`
-								Content struct {
-									DraftIssue struct {
-										Title string
-										Body  string
-									} `graphql:"... on DraftIssue"`
-									Issue struct {
-										Title    string
-										Assignees struct {
-											Nodes []struct {
-												Login string
-											}
-										} `graphql:"assignees(first: 10)"`
-									} `graphql:"... on Issue"`
-									PullRequest struct {
-										Title    string
-										Assignees struct {
-											Nodes []struct {
-												Login string
-											}
-										} `graphql:"assignees(first: 10)"`
-									} `graphql:"... on PullRequest"`
-								}
-							}
-						} `graphql:"items(first: 20)"`
-					} `graphql:"projectV2(number: $number)"`
-				} `graphql:"user(login: $owner)"`
+			// Return a simple success message, bypassing actual logic
+			result := map[string]string{
+				"message": "GetProjectV2 handler executed, skipping actual API call.",
 			}
-			
-			userVars := map[string]interface{}{
-				"owner":  githubv4.String(owner),
-				"number": githubv4.Int(number),
-			}
-			
-			fmt.Println("DEBUG: Making user query to GraphQL API")
-			err = graphqlClient.Query(ctx, &userQuery, userVars)
-			if err == nil && userQuery.User.ProjectV2.ID != "" {
-				fmt.Println("DEBUG: User query succeeded")
-				r, err := json.Marshal(userQuery)
-				if err != nil {
-					return nil, err
-				}
-				return mcp.NewToolResultText(string(r)), nil
-			}
-			
-			// If user query failed, try organization query
-			fmt.Println("DEBUG: User query failed or returned no data, trying organization query")
-			var orgQuery struct {
-				Organization struct {
-					ProjectV2 struct {
-						ID          string
-						Title       string
-						Description string `graphql:"shortDescription"`
-						Readme      string
-						Public      bool
-						Items struct {
-							Nodes []struct {
-								ID          string
-								FieldValues struct {
-									Nodes []struct {
-										TextValue struct {
-											Text  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldTextValue"`
-										DateValue struct {
-											Date  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldDateValue"`
-										SingleSelectValue struct {
-											Name  string
-											Field struct {
-												Name string
-											} `graphql:"field { ... on ProjectV2FieldCommon { name } }"`
-										} `graphql:"... on ProjectV2ItemFieldSingleSelectValue"`
-									}
-								} `graphql:"fieldValues(first: 8)"`
-								Content struct {
-									DraftIssue struct {
-										Title string
-										Body  string
-									} `graphql:"... on DraftIssue"`
-									Issue struct {
-										Title    string
-										Assignees struct {
-											Nodes []struct {
-												Login string
-											}
-										} `graphql:"assignees(first: 10)"`
-									} `graphql:"... on Issue"`
-									PullRequest struct {
-										Title    string
-										Assignees struct {
-											Nodes []struct {
-												Login string
-											}
-										} `graphql:"assignees(first: 10)"`
-									} `graphql:"... on PullRequest"`
-								}
-							}
-						} `graphql:"items(first: 20)"`
-					} `graphql:"projectV2(number: $number)"`
-				} `graphql:"organization(login: $owner)"`
-			}
-			
-			orgVars := map[string]interface{}{
-				"owner":  githubv4.String(owner),
-				"number": githubv4.Int(number),
-			}
-			
-			err = graphqlClient.Query(ctx, &orgQuery, orgVars)
-			if err != nil {
-				fmt.Printf("DEBUG: Both queries failed. Error: %v\n", err)
-				return mcp.NewToolResultError("Error getting project: " + err.Error()), nil
-			}
-			
-			fmt.Println("DEBUG: Organization query succeeded")
-			r, err := json.Marshal(orgQuery)
-			if err != nil {
-				return nil, err
-			}
-			
-			return mcp.NewToolResultText(string(r)), nil
+			resultJSON, _ := json.Marshal(result)
+			return mcp.NewToolResultText(string(resultJSON)), nil
 		}
 }
 
